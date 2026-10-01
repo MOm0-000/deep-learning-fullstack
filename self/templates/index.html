@@ -1,0 +1,1116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ALEXNET 图像识别</title>
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <!-- Font Awesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+    <!-- Google Font Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+
+    <style>
+        /* ===== 全部样式（与之前一致） ===== */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            min-height: 100vh;
+            background: linear-gradient(145deg, #f6f9fc 0%, #e9f1f8 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            margin: 0;
+        }
+        .container {
+            max-width: 880px;
+            width: 100%;
+            margin: 0 auto;
+            animation: fadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+        @keyframes fadeUp {
+            0% { opacity: 0; transform: translateY(32px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        .app-header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        .app-header .logo-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 72px;
+            height: 72px;
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            border-radius: 20px;
+            color: #fff;
+            font-size: 34px;
+            box-shadow: 0 12px 28px -8px rgba(79, 70, 229, 0.35);
+            margin-bottom: 16px;
+            transition: transform 0.25s ease;
+        }
+        .app-header .logo-icon:hover { transform: scale(1.04) rotate(-2deg); }
+        .app-header h1 {
+            font-weight: 700;
+            font-size: 2.2rem;
+            letter-spacing: -0.02em;
+            background: linear-gradient(135deg, #1e293b, #334155);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 6px;
+        }
+        .app-header .subtitle {
+            font-size: 1rem;
+            color: #64748b;
+            font-weight: 400;
+            letter-spacing: 0.01em;
+        }
+        .app-header .subtitle i { color: #818cf8; margin: 0 4px; }
+
+        /* 新增：顶部工具栏（模型选择 + 语言切换） */
+        .top-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .top-toolbar .model-selector {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .top-toolbar .model-selector label {
+            font-weight: 500;
+            color: #475569;
+            margin: 0;
+            font-size: 0.9rem;
+        }
+        .top-toolbar .model-selector select {
+            border-radius: 40px;
+            padding: 4px 16px;
+            border: 1px solid #d1d9e6;
+            background: #fff;
+            font-size: 0.9rem;
+            color: #1e293b;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        .top-toolbar .model-selector select:focus {
+            border-color: #4f46e5;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+        }
+
+        .main-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 32px;
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 0 24px 64px -16px rgba(15, 23, 42, 0.12), 0 8px 24px -8px rgba(15, 23, 42, 0.06);
+            padding: 32px 36px;
+            transition: box-shadow 0.3s ease, transform 0.2s ease;
+            margin-bottom: 28px;
+        }
+        .main-card:hover { box-shadow: 0 32px 80px -20px rgba(15, 23, 42, 0.16); }
+
+        .upload-zone {
+            position: relative;
+            border: 2px dashed #d1d9e6;
+            border-radius: 20px;
+            padding: 40px 20px 36px;
+            text-align: center;
+            background: rgba(248, 250, 252, 0.6);
+            transition: border-color 0.3s ease, background 0.3s ease, transform 0.2s ease;
+            cursor: pointer;
+        }
+        .upload-zone:hover { border-color: #818cf8; background: rgba(248, 250, 252, 0.9); }
+        .upload-zone.dragover { border-color: #4f46e5; background: rgba(79, 70, 229, 0.04); transform: scale(1.01); }
+        .upload-zone .icon-wrap { font-size: 48px; color: #94a3b8; margin-bottom: 12px; transition: color 0.3s ease; }
+        .upload-zone:hover .icon-wrap { color: #4f46e5; }
+        .upload-zone .upload-title { font-weight: 600; font-size: 1.1rem; color: #1e293b; margin-bottom: 4px; }
+        .upload-zone .upload-hint { font-size: 0.9rem; color: #94a3b8; }
+        .upload-zone .upload-hint strong { color: #4f46e5; font-weight: 600; }
+        .upload-zone input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+            width: 100%;
+            height: 100%;
+        }
+
+        .preview-wrapper {
+            margin-top: 24px;
+            display: none;
+            border-radius: 16px;
+            overflow: hidden;
+            background: #f1f5f9;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+        }
+        .preview-wrapper.show { display: block; animation: fadeScale 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
+        @keyframes fadeScale {
+            0% { opacity: 0; transform: scale(0.96); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .preview-wrapper img {
+            width: 100%;
+            max-height: 320px;
+            object-fit: contain;
+            display: block;
+            background: #f8fafc;
+            padding: 8px;
+        }
+
+        .btn-recognize {
+            margin-top: 24px;
+            width: 100%;
+            padding: 14px 0;
+            font-weight: 600;
+            font-size: 1.05rem;
+            border-radius: 16px;
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            border: none;
+            color: #fff;
+            transition: transform 0.2s ease, box-shadow 0.3s ease, opacity 0.2s ease;
+            box-shadow: 0 8px 24px -8px rgba(79, 70, 229, 0.4);
+            letter-spacing: 0.3px;
+        }
+        .btn-recognize:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 32px -10px rgba(79, 70, 229, 0.5);
+            background: linear-gradient(135deg, #4338ca, #6d28d9);
+        }
+        .btn-recognize:active:not(:disabled) { transform: translateY(0px); }
+        .btn-recognize:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .btn-recognize i { margin-right: 10px; }
+
+        .loading-box {
+            margin-top: 24px;
+            display: none;
+            text-align: center;
+            padding: 20px 0 12px;
+        }
+        .loading-box.show { display: block; animation: fadeScale 0.3s ease both; }
+        .loading-box .spinner {
+            width: 44px;
+            height: 44px;
+            border: 4px solid #e2e8f0;
+            border-top-color: #4f46e5;
+            border-radius: 50%;
+            animation: spin 0.9s linear infinite;
+            margin: 0 auto 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-box p { color: #475569; font-weight: 500; font-size: 0.95rem; margin: 0; }
+        .loading-box p i { color: #818cf8; margin-right: 6px; }
+
+        .result-box {
+            margin-top: 28px;
+            display: none;
+            animation: fadeScale 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+        .result-box.show { display: block; }
+        .result-box .result-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        .result-box .result-header i {
+            font-size: 24px;
+            color: #10b981;
+            background: #d1fae5;
+            padding: 8px;
+            border-radius: 12px;
+        }
+        .result-box .result-header h4 { font-weight: 700; font-size: 1.15rem; color: #0f172a; margin: 0; }
+        .result-box .result-header .badge-count {
+            margin-left: auto;
+            background: #e2e8f0;
+            color: #475569;
+            font-weight: 600;
+            padding: 4px 14px;
+            border-radius: 40px;
+            font-size: 0.8rem;
+        }
+
+        .prediction-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 18px;
+            background: #f8fafc;
+            border-radius: 14px;
+            margin-bottom: 8px;
+            transition: background 0.2s ease, transform 0.15s ease;
+            border-left: 4px solid transparent;
+        }
+        .prediction-item:hover { background: #f1f5f9; transform: translateX(4px); }
+        .prediction-item .class-name {
+            font-weight: 500;
+            color: #0f172a;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .prediction-item .class-name .rank {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            border-radius: 8px;
+            background: #e2e8f0;
+            color: #475569;
+            font-size: 0.7rem;
+            font-weight: 700;
+        }
+        .prediction-item .confidence-badge {
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            color: #fff;
+            font-weight: 600;
+            padding: 4px 16px;
+            border-radius: 40px;
+            font-size: 0.85rem;
+            letter-spacing: 0.2px;
+            white-space: nowrap;
+        }
+        .prediction-item .confidence-badge.low { background: #94a3b8; }
+        .prediction-item .confidence-badge.medium { background: #f59e0b; }
+        .prediction-item .confidence-badge.high { background: linear-gradient(135deg, #10b981, #059669); }
+
+        .error-box {
+            margin-top: 24px;
+            display: none;
+            padding: 16px 20px;
+            border-radius: 16px;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #b91c1c;
+            font-weight: 500;
+            align-items: center;
+            gap: 12px;
+            animation: fadeScale 0.3s ease both;
+        }
+        .error-box.show { display: flex; }
+        .error-box i { font-size: 20px; color: #dc2626; }
+
+        .batch-upload-zone {
+            border: 2px dashed #d1d9e6;
+            border-radius: 20px;
+            padding: 30px 20px;
+            text-align: center;
+            background: rgba(248, 250, 252, 0.6);
+            transition: border-color 0.3s ease, background 0.3s ease;
+            cursor: pointer;
+            position: relative;
+        }
+        .batch-upload-zone:hover { border-color: #818cf8; background: rgba(248, 250, 252, 0.9); }
+        .batch-upload-zone.dragover { border-color: #4f46e5; background: rgba(79, 70, 229, 0.04); }
+        .batch-upload-zone .icon-wrap { font-size: 36px; color: #94a3b8; margin-bottom: 8px; }
+        .batch-upload-zone .upload-title { font-weight: 600; font-size: 1rem; color: #1e293b; }
+        .batch-upload-zone input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+            width: 100%;
+            height: 100%;
+        }
+
+        .batch-file-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 10px;
+            margin-top: 16px;
+        }
+        .batch-file-item {
+            background: #f8fafc;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            text-align: center;
+            padding: 8px;
+            transition: transform 0.2s;
+            position: relative;  /* [新增] 用于定位删除按钮 */
+        }
+        .batch-file-item img { width: 100%; height: 80px; object-fit: cover; border-radius: 8px; }
+        .batch-file-item .file-name { font-size: 0.7rem; color: #475569; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* [新增] 删除按钮样式 */
+        .batch-delete-btn {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: rgba(220, 38, 38, 0.85);
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            width: 22px;
+            height: 22px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.2s;
+            padding: 0;
+            line-height: 1;
+        }
+        .batch-delete-btn:hover { background: #dc2626; }
+
+        .batch-progress { margin-top: 16px; display: none; }
+        .batch-progress.show { display: block; }
+        .batch-progress .progress-bar { background: linear-gradient(135deg, #4f46e5, #7c3aed); }
+
+        .btn-batch {
+            margin-top: 16px;
+            width: 100%;
+            padding: 12px 0;
+            font-weight: 600;
+            font-size: 1rem;
+            border-radius: 16px;
+            background: linear-gradient(135deg, #0ea5e9, #3b82f6);
+            border: none;
+            color: #fff;
+            transition: transform 0.2s ease, box-shadow 0.3s ease, opacity 0.2s ease;
+            box-shadow: 0 8px 24px -8px rgba(14, 165, 233, 0.4);
+        }
+        .btn-batch:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 32px -10px rgba(14, 165, 233, 0.5);
+            background: linear-gradient(135deg, #0284c7, #2563eb);
+        }
+        .btn-batch:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .btn-batch i { margin-right: 8px; }
+
+        .btn-cancel-batch {
+            margin-top: 8px;
+            background: transparent;
+            border: 1px solid #e2e8f0;
+            color: #64748b;
+            border-radius: 40px;
+            padding: 4px 16px;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+        .btn-cancel-batch:hover { background: #f1f5f9; border-color: #94a3b8; }
+
+        .footer-note {
+            margin-top: 28px;
+            text-align: center;
+            font-size: 0.8rem;
+            color: #94a3b8;
+            letter-spacing: 0.2px;
+        }
+        .footer-note i { color: #818cf8; margin: 0 4px; }
+
+        .history-item { cursor: pointer; transition: all 0.2s; }
+        .history-item:hover { background: #f1f5f9; transform: translateX(4px); }
+
+        .batch-toolbar { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+
+        @media (max-width: 600px) {
+            .main-card { padding: 20px 16px; border-radius: 24px; }
+            .app-header h1 { font-size: 1.6rem; }
+            .app-header .logo-icon { width: 60px; height: 60px; font-size: 28px; }
+            .upload-zone { padding: 28px 16px 24px; }
+            .upload-zone .icon-wrap { font-size: 36px; }
+            .btn-recognize { font-size: 0.95rem; padding: 12px 0; }
+            .prediction-item { padding: 10px 14px; flex-wrap: wrap; gap: 8px; }
+            .prediction-item .confidence-badge { font-size: 0.75rem; padding: 2px 12px; }
+            .batch-file-list { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); }
+            .top-toolbar { flex-direction: column; align-items: stretch; }
+        }
+        @media (max-width: 400px) {
+            .main-card { padding: 16px 12px; }
+            .app-header h1 { font-size: 1.3rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <div class="app-header">
+            <div class="logo-icon"><i class="fas fa-brain"></i></div>
+            <h1 data-i18n="app_title">ALEXNET 图像识别</h1>
+            <p class="subtitle"><i class="fas fa-microchip"></i> <span data-i18n="app_subtitle">深度学习 · 实时推理</span></p>
+        </div>
+
+        <!-- 全局工具栏：模型选择 + 语言切换 -->
+        <div class="top-toolbar">
+            <div class="model-selector">
+                <label for="globalModelSelect" data-i18n="model_select">选择模型</label>
+                <select id="globalModelSelect">
+                    <option value="alexnet" data-i18n="model_alexnet">AlexNet</option>
+                    <option value="convnext" data-i18n="model_convnext">ConvNeXt-Nano (蒸馏)</option>
+                </select>
+            </div>
+            <div>
+                <button class="btn btn-outline-secondary btn-sm" id="langToggle" data-i18n="lang_toggle">English</button>
+            </div>
+        </div>
+
+        <!-- 单张识别卡片 -->
+        <div class="main-card">
+            <h5 class="mb-3"><i class="fas fa-single-01"></i> <span data-i18n="single_title">单张图片识别</span></h5>
+            <form id="upload-form" enctype="multipart/form-data">
+                <div class="upload-zone" id="uploadZone">
+                    <div class="icon-wrap"><i class="fas fa-cloud-upload-alt"></i></div>
+                    <div class="upload-title" data-i18n="upload_title">点击或拖拽上传图片</div>
+                    <div class="upload-hint"><span data-i18n="upload_hint">支持</span> <strong>JPG</strong> · <strong>PNG</strong> · <strong>WEBP</strong></div>
+                    <input type="file" id="file-input" accept="image/*" />
+                </div>
+                <div class="preview-wrapper" id="previewWrapper">
+                    <img id="preview" alt="图片预览" />
+                </div>
+                <button type="submit" class="btn-recognize" id="submitBtn">
+                    <i class="fas fa-robot"></i> <span data-i18n="recognize_btn">开始识别</span>
+                </button>
+            </form>
+            <div class="row mt-3 g-2">
+                <div class="col-8">
+                    <input type="url" class="form-control" id="urlInput" placeholder="https://example.com/image.jpg" data-i18n-placeholder="url_placeholder" />
+                </div>
+                <div class="col-4">
+                    <button class="btn btn-outline-primary w-100" id="urlBtn"><i class="fas fa-link"></i> <span data-i18n="url_btn">识别 URL</span></button>
+                </div>
+            </div>
+            <div class="loading-box" id="loading">
+                <div class="spinner"></div>
+                <p><i class="fas fa-sparkles"></i> <span data-i18n="loading_text">AI 正在分析图片，请稍候…</span></p>
+            </div>
+            <div class="result-box" id="result">
+                <div class="result-header">
+                    <i class="fas fa-check-circle"></i>
+                    <h4><span data-i18n="result_title">识别结果</span></h4>
+                    <span class="badge-count" id="resultCount">0 <span data-i18n="result_count">个类别</span></span>
+                </div>
+                <ul id="prediction-list" style="list-style: none; padding: 0; margin: 0;"></ul>
+            </div>
+            <div class="error-box" id="error">
+                <i class="fas fa-exclamation-circle"></i>
+                <span id="errorText">出错了，请重试。</span>
+            </div>
+        </div>
+
+        <!-- ========== 批量识别卡片 ========== -->
+        <div class="main-card">
+            <h5 class="mb-3"><i class="fas fa-images"></i> <span data-i18n="batch_title">批量识别 & 导出结果</span></h5>
+            <p class="text-muted small" data-i18n="batch_desc">一次上传多张图片，识别完成后将自动下载结果文件（CSV/JSON/Markdown）。支持多次追加文件。</p>
+            <div class="batch-upload-zone" id="batchUploadZone">
+                <div class="icon-wrap"><i class="fas fa-folder-open"></i></div>
+                <div class="upload-title" data-i18n="batch_upload_title">点击选择多张图片，或拖拽到此（可追加）</div>
+                <input type="file" id="batchFileInput" accept="image/*" multiple />
+            </div>
+            <div id="batchFileList" class="batch-file-list"></div>
+
+            <div class="batch-toolbar">
+                <span id="batchFileCount" class="text-muted small">共 0 张</span>
+                <button class="btn btn-outline-secondary btn-sm" id="clearBatchBtn" data-i18n="clear_batch"><i class="fas fa-trash"></i> <span data-i18n="clear_batch">清空列表</span></button>
+            </div>
+
+            <div class="row mt-3 g-2">
+                <div class="col-md-4">
+                    <label class="form-label small fw-bold" data-i18n="output_format_label">输出格式</label>
+                    <select class="form-select" id="batchFormat">
+                        <option value="csv">CSV (表格)</option>
+                        <option value="json">JSON (结构化)</option>
+                        <option value="md">Markdown (报告)</option>
+                    </select>
+                </div>
+                <div class="col-md-8 d-flex align-items-end">
+                    <button class="btn-batch" id="batchSubmitBtn" disabled>
+                        <i class="fas fa-file-export"></i> <span data-i18n="batch_btn">批量识别并导出</span>
+                    </button>
+                </div>
+            </div>
+            <div class="batch-progress" id="batchProgress">
+                <div class="progress"><div class="progress-bar progress-bar-striped progress-bar-animated" style="width:100%"><span data-i18n="processing">处理中...</span></div></div>
+                <div class="d-flex justify-content-end mt-2">
+                    <button class="btn-cancel-batch" id="batchCancelBtn"><i class="fas fa-times"></i> <span data-i18n="cancel">取消</span></button>
+                </div>
+            </div>
+            <div class="error-box" id="batchError" style="margin-top:16px;">
+                <i class="fas fa-exclamation-circle"></i>
+                <span id="batchErrorText">错误信息</span>
+            </div>
+        </div>
+
+        <!-- 历史记录卡片 -->
+        <div class="main-card">
+            <h5 class="mb-3"><i class="fas fa-history"></i> <span data-i18n="history_title">识别历史</span></h5>
+            <div id="historyContainer">
+                <p class="text-muted small" data-i18n="history_empty">暂无历史记录</p>
+            </div>
+            <button class="btn btn-outline-danger btn-sm mt-2" id="clearHistoryBtn" data-i18n="clear_history">清空历史</button>
+        </div>
+
+        <div class="footer-note">
+            <i class="fas fa-cpu"></i> <span data-i18n="footer">基于 AlexNet 架构 · 预训练模型</span>
+        </div>
+    </div>
+
+    <script>
+        // ================================================================
+        // 多语言国际化
+        // ================================================================
+        const I18N = {
+            zh: {
+                app_title: 'ALEXNET 图像识别',
+                app_subtitle: '深度学习 · 实时推理',
+                lang_toggle: 'English',
+                model_select: '选择模型',
+                model_alexnet: 'AlexNet',
+                model_convnext: 'ConvNeXt-Nano (蒸馏)',
+                single_title: '单张图片识别',
+                upload_title: '点击或拖拽上传图片',
+                upload_hint: '支持',
+                recognize_btn: '开始识别',
+                url_placeholder: 'https://example.com/image.jpg',
+                url_btn: '识别 URL',
+                loading_text: 'AI 正在分析图片，请稍候…',
+                result_title: '识别结果',
+                result_count: '个类别',
+                batch_title: '批量识别 & 导出结果',
+                batch_desc: '一次上传多张图片，识别完成后将自动下载结果文件（CSV/JSON/Markdown）。支持多次追加文件。',
+                batch_upload_title: '点击选择多张图片，或拖拽到此（可追加）',
+                output_format_label: '输出格式',
+                batch_btn: '批量识别并导出',
+                processing: '处理中...',
+                cancel: '取消',
+                history_title: '识别历史',
+                history_empty: '暂无历史记录',
+                clear_history: '清空历史',
+                footer: '基于 AlexNet 架构 · 预训练模型',
+                clear_batch:'清空列表'
+            },
+            en: {
+                app_title: 'ALEXNET Image Recognition',
+                app_subtitle: 'Deep Learning · Real-time Inference',
+                lang_toggle: '中文',
+                model_select: 'Select Model',
+                model_alexnet: 'AlexNet',
+                model_convnext: 'ConvNeXt-Nano (distilled)',
+                single_title: 'Single Image Recognition',
+                upload_title: 'Click or drag to upload image',
+                upload_hint: 'Supported',
+                recognize_btn: 'Recognize',
+                url_placeholder: 'https://example.com/image.jpg',
+                url_btn: 'Recognize URL',
+                loading_text: 'AI is analyzing the image, please wait...',
+                result_title: 'Recognition Results',
+                result_count: 'classes',
+                batch_title: 'Batch Recognition & Export',
+                batch_desc: 'Upload multiple images, results will be downloaded as CSV/JSON/Markdown. You can append more files.',
+                batch_upload_title: 'Click to select images or drag here (append)',
+                output_format_label: 'Output Format',
+                batch_btn: 'Batch Recognize & Export',
+                processing: 'Processing...',
+                cancel: 'Cancel',
+                history_title: 'Recognition History',
+                history_empty: 'No history yet',
+                clear_history: 'Clear History',
+                footer: 'Based on AlexNet Architecture · Pretrained Model',
+                clear_batch:'Clear List'
+            }
+        };
+
+        let currentLang = 'zh';
+        function t(key) { return I18N[currentLang][key] || key; }
+
+        function setLanguage(lang) {
+            currentLang = lang;
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (key) el.textContent = t(key);
+            });
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                const key = el.getAttribute('data-i18n-placeholder');
+                if (key) el.placeholder = t(key);
+            });
+            // 更新下拉框选项的文本（因为选项本身有 data-i18n）
+            document.querySelectorAll('#globalModelSelect option[data-i18n]').forEach(opt => {
+                const key = opt.getAttribute('data-i18n');
+                if (key) opt.textContent = t(key);
+            });
+            document.getElementById('langToggle').textContent = lang === 'zh' ? 'English' : '中文';
+        }
+
+        document.getElementById('langToggle').addEventListener('click', function() {
+            setLanguage(currentLang === 'zh' ? 'en' : 'zh');
+        });
+        setLanguage('zh');
+
+        // ================================================================
+        // 全局模型选择
+        // ================================================================
+        const modelSelect = document.getElementById('globalModelSelect');
+        let selectedModel = modelSelect.value; // 初始值
+
+        modelSelect.addEventListener('change', function() {
+            selectedModel = this.value;
+        });
+
+        // ================================================================
+        // 单张识别
+        // ================================================================
+        const fileInput = document.getElementById('file-input');
+        const preview = document.getElementById('preview');
+        const previewWrapper = document.getElementById('previewWrapper');
+        const uploadZone = document.getElementById('uploadZone');
+        const form = document.getElementById('upload-form');
+        const submitBtn = document.getElementById('submitBtn');
+        const loadingBox = document.getElementById('loading');
+        const resultBox = document.getElementById('result');
+        const resultList = document.getElementById('prediction-list');
+        const resultCount = document.getElementById('resultCount');
+        const errorBox = document.getElementById('error');
+        const errorText = document.getElementById('errorText');
+        const urlInput = document.getElementById('urlInput');
+        const urlBtn = document.getElementById('urlBtn');
+
+        function show(el) { el.classList.add('show'); }
+        function hide(el) { el.classList.remove('show'); }
+
+        function previewFile(file) {
+            if (!file) {
+                previewWrapper.classList.remove('show');
+                preview.src = '';
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                preview.src = ev.target.result;
+                previewWrapper.classList.add('show');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        let currentFile = null;
+
+        function renderPredictions(predictions) {
+            resultList.innerHTML = '';
+            resultCount.textContent = predictions.length + ' ' + t('result_count');
+            predictions.forEach((pred, index) => {
+                const li = document.createElement('li');
+                li.className = 'prediction-item';
+                const confValue = parseFloat(pred.confidence) || 0;
+                let badgeClass = 'low';
+                if (confValue >= 70) badgeClass = 'high';
+                else if (confValue >= 45) badgeClass = 'medium';
+                li.innerHTML = `
+                    <span class="class-name">
+                        <span class="rank">${index + 1}</span>
+                        ${pred.class || '未知类别'}
+                    </span>
+                    <span class="confidence-badge ${badgeClass}">${pred.confidence || '0%'}</span>
+                `;
+                resultList.appendChild(li);
+            });
+            show(resultBox);
+        }
+
+        async function uploadFile(file) {
+            if (!file) {
+                errorText.textContent = '请先选择一张图片。';
+                show(errorBox);
+                return;
+            }
+            hide(resultBox);
+            hide(errorBox);
+            hide(loadingBox);
+            submitBtn.disabled = true;
+            show(loadingBox);
+
+            const formData = new FormData();
+            formData.append('file', file);
+            // 添加全局模型选择
+            formData.append('model', selectedModel);
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                if (data.success) {
+                    renderPredictions(data.predictions);
+                    saveHistory(file.name, data.predictions);
+                } else {
+                    errorText.textContent = data.error || '识别失败，请检查图片格式。';
+                    show(errorBox);
+                }
+            } catch (err) {
+                errorText.textContent = '网络请求失败：' + err.message;
+                show(errorBox);
+            } finally {
+                hide(loadingBox);
+                submitBtn.disabled = false;
+            }
+        }
+
+        async function recognizeUrl() {
+            const url = urlInput.value.trim();
+            if (!url) {
+                errorText.textContent = '请输入图片 URL。';
+                show(errorBox);
+                return;
+            }
+            const img = new Image();
+            const previewPromise = new Promise((resolve) => {
+                img.onload = () => resolve(true);
+                img.onerror = () => resolve(false);
+                img.crossOrigin = 'anonymous';
+                img.src = url;
+                setTimeout(() => resolve(false), 5000);
+            });
+            const loaded = await previewPromise;
+            if (loaded) {
+                preview.src = url;
+                previewWrapper.classList.add('show');
+                hide(errorBox);
+            } else {
+                previewWrapper.classList.remove('show');
+                errorText.textContent = '⚠️ 无法预览此图片（可能为跨域或无效地址），仍将尝试识别。';
+                show(errorBox);
+            }
+
+            hide(resultBox);
+            hide(errorBox);
+            submitBtn.disabled = true;
+            show(loadingBox);
+
+            try {
+                const response = await fetch('/predict_url', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, model: selectedModel })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    renderPredictions(data.predictions);
+                    saveHistory(url, data.predictions);
+                } else {
+                    errorText.textContent = data.error || 'URL 识别失败。';
+                    show(errorBox);
+                }
+            } catch (err) {
+                errorText.textContent = '网络请求失败：' + err.message;
+                show(errorBox);
+            } finally {
+                hide(loadingBox);
+                submitBtn.disabled = false;
+            }
+        }
+
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) { currentFile = null; previewFile(null); return; }
+            currentFile = file;
+            previewFile(file);
+        });
+
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            uploadFile(currentFile);
+        });
+
+        uploadZone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+        uploadZone.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+        });
+        uploadZone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length === 0) return;
+            const file = files[0];
+            if (!file.type.startsWith('image/')) {
+                errorText.textContent = '请拖拽图片文件（JPG/PNG/WEBP 等）。';
+                show(errorBox);
+                currentFile = null;
+                previewFile(null);
+                return;
+            }
+            currentFile = file;
+            previewFile(file);
+            hide(errorBox);
+        });
+
+        urlBtn.addEventListener('click', recognizeUrl);
+        urlInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') recognizeUrl(); });
+
+        // ================================================================
+        // 批量识别
+        // ================================================================
+        const batchFileInput = document.getElementById('batchFileInput');
+        const batchUploadZone = document.getElementById('batchUploadZone');
+        const batchFileList = document.getElementById('batchFileList');
+        const batchFormat = document.getElementById('batchFormat');
+        const batchSubmitBtn = document.getElementById('batchSubmitBtn');
+        const batchProgress = document.getElementById('batchProgress');
+        const batchCancelBtn = document.getElementById('batchCancelBtn');
+        const batchError = document.getElementById('batchError');
+        const batchErrorText = document.getElementById('batchErrorText');
+        const batchFileCount = document.getElementById('batchFileCount');
+        const clearBatchBtn = document.getElementById('clearBatchBtn');
+
+        let batchFiles = [];
+        let abortController = null;
+
+        function isFileDuplicate(newFile, existingFiles) {
+            return existingFiles.some(f => f.name === newFile.name && f.size === newFile.size);
+        }
+
+        function removeBatchFile(index) {
+            if (index >= 0 && index < batchFiles.length) {
+                batchFiles.splice(index, 1);
+                renderBatchFiles();
+                if (batchFiles.length === 0) hide(batchError);
+            }
+        }
+
+        function renderBatchFiles() {
+            batchFileList.innerHTML = '';
+            if (batchFiles.length === 0) {
+                batchSubmitBtn.disabled = true;
+                batchFileCount.textContent = '共 0 张';
+                return;
+            }
+            batchSubmitBtn.disabled = false;
+            batchFileCount.textContent = `共 ${batchFiles.length} 张`;
+            batchFiles.forEach((file, index) => {
+                const div = document.createElement('div');
+                div.className = 'batch-file-item';
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    div.innerHTML = `
+                        <img src="${ev.target.result}" alt="${file.name}" />
+                        <div class="file-name" title="${file.name}">${file.name}</div>
+                        <button class="batch-delete-btn" data-index="${index}" title="移除该图片"><i class="fas fa-times"></i></button>
+                    `;
+                };
+                reader.readAsDataURL(file);
+                batchFileList.appendChild(div);
+            });
+        }
+
+        function addBatchFiles(newFiles) {
+            if (!newFiles || newFiles.length === 0) return;
+            let added = 0;
+            let duplicates = 0;
+            newFiles.forEach(file => {
+                if (isFileDuplicate(file, batchFiles)) {
+                    duplicates++;
+                } else {
+                    batchFiles.push(file);
+                    added++;
+                }
+            });
+            if (duplicates > 0) {
+                batchErrorText.textContent = `已忽略 ${duplicates} 个重复文件（同名且大小相同）。`;
+                show(batchError);
+                setTimeout(() => hide(batchError), 5000);
+            } else {
+                hide(batchError);
+            }
+            if (added > 0) {
+                renderBatchFiles();
+            }
+        }
+
+        batchFileInput.addEventListener('change', function(e) {
+            const newFiles = Array.from(e.target.files);
+            if (newFiles.length === 0) return;
+            addBatchFiles(newFiles);
+            this.value = '';
+        });
+
+        batchUploadZone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            batchUploadZone.classList.add('dragover');
+        });
+        batchUploadZone.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            batchUploadZone.classList.remove('dragover');
+        });
+        batchUploadZone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            batchUploadZone.classList.remove('dragover');
+            const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+            if (files.length === 0) {
+                batchErrorText.textContent = '请拖拽图片文件（JPG/PNG/WEBP 等）。';
+                show(batchError);
+                return;
+            }
+            addBatchFiles(files);
+        });
+
+        clearBatchBtn.addEventListener('click', function() {
+            if (batchFiles.length === 0) return;
+            if (confirm('确定清空所有已选图片吗？')) {
+                batchFiles = [];
+                renderBatchFiles();
+                hide(batchError);
+                batchFileInput.value = '';
+            }
+        });
+
+        batchSubmitBtn.addEventListener('click', async function() {
+            if (batchFiles.length === 0) return;
+            hide(batchError);
+            batchProgress.classList.add('show');
+            batchSubmitBtn.disabled = true;
+            abortController = new AbortController();
+            const formData = new FormData();
+            batchFiles.forEach(file => formData.append('files[]', file));
+            formData.append('format', batchFormat.value);
+            // 添加全局模型选择
+            formData.append('model', selectedModel);
+
+            try {
+                const response = await fetch('/batch_predict', {
+                    method: 'POST',
+                    body: formData,
+                    signal: abortController.signal
+                });
+                if (!response.ok) {
+                    const errMsg = await response.text();
+                    throw new Error(errMsg || '请求失败');
+                }
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                const disposition = response.headers.get('Content-Disposition');
+                let filename = `results_${new Date().toISOString().slice(0,19).replace(/[:-]/g,'')}.${batchFormat.value}`;
+                if (disposition) {
+                    const match = disposition.match(/filename="(.+)"/);
+                    if (match) filename = match[1];
+                }
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+            } catch (err) {
+                if (err.name === 'AbortError') {
+                    batchErrorText.textContent = '已取消批量识别。';
+                } else {
+                    batchErrorText.textContent = '批量识别失败：' + err.message;
+                }
+                show(batchError);
+            } finally {
+                batchProgress.classList.remove('show');
+                batchSubmitBtn.disabled = false;
+                abortController = null;
+            }
+        });
+
+        batchCancelBtn.addEventListener('click', function() {
+            if (abortController) {
+                abortController.abort();
+                abortController = null;
+            }
+        });
+
+        hide(batchError);
+        batchSubmitBtn.disabled = true;
+
+        // 事件委托：批量删除
+        batchFileList.addEventListener('click', function(e) {
+            const btn = e.target.closest('.batch-delete-btn');
+            if (btn) {
+                e.stopPropagation();
+                const idx = parseInt(btn.dataset.index);
+                if (!isNaN(idx)) {
+                    removeBatchFile(idx);
+                }
+            }
+        });
+
+        // ================================================================
+        // 历史记录
+        // ================================================================
+        const HISTORY_KEY = 'recognition_history';
+        const MAX_HISTORY = 20;
+
+        function saveHistory(identifier, predictions) {
+            const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+            const entry = {
+                id: Date.now(),
+                identifier: identifier,
+                predictions: predictions,
+                timestamp: new Date().toLocaleString()
+            };
+            history.unshift(entry);
+            if (history.length > MAX_HISTORY) history.pop();
+            localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+            renderHistory();
+        }
+
+        function renderHistory() {
+            const container = document.getElementById('historyContainer');
+            const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+            if (history.length === 0) {
+                container.innerHTML = `<p class="text-muted small" data-i18n="history_empty">${t('history_empty')}</p>`;
+                return;
+            }
+            let html = '<div class="row row-cols-1 row-cols-md-2 g-3">';
+            history.forEach(entry => {
+                const top = entry.predictions[0] || {class:'未知', confidence:'0%'};
+                html += `
+                    <div class="col">
+                        <div class="card h-100 history-item" data-id="${entry.id}">
+                            <div class="card-body">
+                                <h6 class="card-title">${entry.identifier}</h6>
+                                <p class="card-text small">${top.class} (${top.confidence})</p>
+                                <p class="card-text"><small class="text-muted">${entry.timestamp}</small></p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+            container.querySelectorAll('.history-item').forEach(el => {
+                el.addEventListener('click', function() {
+                    const id = parseInt(this.dataset.id);
+                    showHistoryDetail(id);
+                });
+            });
+        }
+
+        function showHistoryDetail(id) {
+            const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+            const entry = history.find(h => h.id === id);
+            if (!entry) return;
+            renderPredictions(entry.predictions);
+            errorText.textContent = `历史记录：${entry.identifier} (${entry.timestamp})`;
+            hide(errorBox);
+        }
+
+        document.getElementById('clearHistoryBtn').addEventListener('click', function() {
+            if (confirm('确定清空所有历史记录吗？')) {
+                localStorage.removeItem(HISTORY_KEY);
+                renderHistory();
+            }
+        });
+
+        renderHistory();
+        console.log('✨ ALEXNET 图像识别已准备就绪（支持单张、批量、URL、历史、多语言，全局模型选择）');
+    </script>
+</body>
+</html>

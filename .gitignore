@@ -1,0 +1,23 @@
+__pycache__/
+.pytest_cache/
+*.py[cod]
+.venv/
+.env
+
+# Generated data, weights, and uploaded images
+distll/ILSVRC2012_*/
+distll/DATA/
+distll/distill_output/
+*.pth
+*.pt
+**/static/uploads/
+self/.static/
+
+# Local document builds and private coursework
+tmp/
+output/**/build/
+output/pdf/
+实验报告/
+*.pdf
+*.doc
+*.docx

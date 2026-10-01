@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ALEXNET图像识别</title>
+    <!-- 引入Bootstrap样式库，用于快速构建响应式UI -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { padding: 20px; background-color: #f8f9fa; } /* 页面基础样式 */
+        .container { max-width: 800px; } /* 内容容器最大宽度，限制页面宽度 */
+        #preview { max-width: 100%; max-height: 300px; margin-top: 20px; } /* 图片预览区域样式 */
+        .result-box { margin-top: 20px; } /* 识别结果区域间距 */
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center mb-4">🖼️ ALEXNET图像识别应用</h1>
+        <p class="text-center">上传一张图片，AI会告诉你它是什么！</p>
+        
+        <div class="card shadow">
+            <div class="card-body">
+                <!-- 文件上传表单：enctype必须设置为multipart/form-data以支持文件上传 -->
+                <form id="upload-form" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="file-input" class="form-label">选择图片文件</label>
+                        <!-- accept="image/*" 限制仅能选择图片文件，required强制必须选择文件 -->
+                        <input class="form-control" type="file" id="file-input" accept="image/*" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">识别图片</button>
+                </form>
+
+                <!-- 图片预览区域：初始隐藏，选择文件后显示 -->
+                <div class="text-center mt-4">
+                    <img id="preview" class="img-fluid rounded" style="display: none;">
+                </div>
+
+                <!-- 加载指示器：提交请求后显示，请求完成后隐藏 -->
+                <div id="loading" class="text-center mt-4" style="display: none;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                    <p class="mt-2">AI正在思考...</p>
+                </div>
+
+                <!-- 识别结果显示区域：初始隐藏，请求成功后显示 -->
+                <div id="result" class="result-box" style="display: none;">
+                    <h4>识别结果：</h4>
+                    <ul id="prediction-list" class="list-group"></ul>
+                </div>
+
+                <!-- 错误提示区域：初始隐藏，请求失败/返回错误时显示 -->
+                <div id="error" class="alert alert-danger mt-3" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===================== 核心交互逻辑：图片预览功能 =====================
+        // 监听文件选择框的change事件（用户选择/更换图片时触发）
+        document.getElementById('file-input').addEventListener('change', function(e) {
+            // 获取用户选择的第一个文件
+            const file = e.target.files[0];
+            // 仅当有文件选择时执行预览逻辑
+            if (file) {
+                // 创建FileReader对象，用于读取本地文件内容
+                const reader = new FileReader();
+                // 定义文件读取完成后的回调函数
+                reader.onload = function(event) {
+                    const preview = document.getElementById('preview');
+                    // 将读取到的文件数据（DataURL格式）赋值给图片src，实现预览
+                    preview.src = event.target.result;
+                    // 显示预览图片
+                    preview.style.display = 'block';
+                };
+                // 以DataURL格式读取文件（适合图片预览场景）
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // ===================== 核心交互逻辑：表单提交与AI识别请求 =====================
+        // 监听表单提交事件（点击"识别图片"按钮时触发）
+        document.getElementById('upload-form').addEventListener('submit', async function(e) {
+            // 阻止表单默认提交行为（避免页面刷新）
+            e.preventDefault();
+            
+            // 获取文件输入框和选中的文件
+            const fileInput = document.getElementById('file-input');
+            const file = fileInput.files[0];
+            // 边界判断：若无文件则直接终止执行
+            if (!file) return;
+
+            // 交互状态控制：显示加载中，隐藏结果/错误区域（重置UI状态）
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('result').style.display = 'none';
+            document.getElementById('error').style.display = 'none';
+
+            // 构建FormData对象，用于封装文件数据（适配multipart/form-data格式）
+            const formData = new FormData();
+            formData.append('file', file); // 将图片文件添加到FormData中，键名为"file"
+
+            try {
+                // 发送异步POST请求到后端/predict接口
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData // 提交FormData格式的文件数据
+                });
+
+                // 解析后端返回的JSON格式响应数据
+                const data = await response.json();
+
+                // 场景1：请求成功且后端返回success=true（识别成功）
+                if (data.success) {
+                    // 获取结果列表容器并清空原有内容
+                    const resultList = document.getElementById('prediction-list');
+                    resultList.innerHTML = '';
+                    
+                    // 遍历后端返回的识别结果数组，动态生成列表项
+                    data.predictions.forEach(pred => {
+                        const li = document.createElement('li');
+                        // 设置Bootstrap样式，实现左右布局（类别名 + 置信度）
+                        li.className = 'list-group-item d-flex justify-content-between align-items-center';
+                        // 填充列表项内容：类别名称 + 置信度徽章
+                        li.innerHTML = `
+                            ${pred.class}
+                            <span class="badge bg-primary rounded-pill">${pred.confidence}</span>
+                        `;
+                        // 将列表项添加到结果列表中
+                        resultList.appendChild(li);
+                    });
+
+                    // 显示识别结果区域
+                    document.getElementById('result').style.display = 'block';
+                } 
+                // 场景2：请求成功但后端返回success=false（识别失败，如文件格式错误）
+                else {
+                    // 设置错误提示文本
+                    document.getElementById('error').textContent = data.error;
+                    // 显示错误提示区域
+                    document.getElementById('error').style.display = 'block';
+                }
+            } 
+            // 场景3：请求异常（如网络错误、后端接口不可用）
+            catch (error) {
+                // 设置网络错误提示文本
+                document.getElementById('error').textContent = '网络请求失败: ' + error.message;
+                // 显示错误提示区域
+                document.getElementById('error').style.display = 'block';
+            } 
+            // 最终执行：无论请求成功/失败，都隐藏加载指示器
+            finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,251 @@
+\documentclass[tikz,border=8pt]{standalone}
+\usepackage{fontspec}
+\usepackage{xeCJK}
+\setmainfont{TeX Gyre Heros}
+\setmonofont{Consolas}
+\setCJKmainfont{Microsoft YaHei}
+\setCJKmonofont{FangSong}
+\usetikzlibrary{arrows.meta,positioning,fit,calc,backgrounds}
+
+\definecolor{ink}{HTML}{30333A}
+\definecolor{muted}{HTML}{60656F}
+\definecolor{groupfill}{HTML}{FFFEE5}
+\definecolor{groupedge}{HTML}{B8AA43}
+\definecolor{browseredge}{HTML}{1971C2}
+\definecolor{serveredge}{HTML}{F07A2A}
+\definecolor{logicedge}{HTML}{6C2B8F}
+\definecolor{engineedge}{HTML}{D9485F}
+\definecolor{assetedge}{HTML}{E38B27}
+\definecolor{trainedge}{HTML}{2A8A62}
+\definecolor{alertfill}{HTML}{FFF0EE}
+\definecolor{alertedge}{HTML}{C43C2D}
+
+\begin{document}
+\begin{tikzpicture}[
+  x=1cm,y=1cm,
+  every node/.style={text=ink},
+  component/.style={draw=#1,fill=#1!8,very thick,inner sep=7pt,align=center,font=\small,minimum height=1.05cm},
+  compact/.style={draw=#1,fill=#1!8,thick,inner sep=6pt,align=center,font=\footnotesize,minimum height=0.82cm},
+  flow/.style={-{Latex[length=2.1mm,width=1.35mm]},draw=muted,thin},
+  strongflow/.style={-{Latex[length=2.2mm,width=1.45mm]},draw=ink,semithick},
+  dependency/.style={-{Latex[length=2mm,width=1.3mm]},draw=muted,dashed,thin},
+  trainflow/.style={-{Latex[length=2.1mm,width=1.4mm]},draw=trainedge,semithick},
+  edgeword/.style={fill=white,fill opacity=.88,text opacity=1,inner sep=1.2pt,font=\scriptsize,text=muted,align=center},
+  grouptitle/.style={font=\bfseries\small,text=ink},
+  group/.style={draw=groupedge,fill=groupfill,fill opacity=.70,draw opacity=.95,inner sep=10pt},
+  warning/.style={draw=alertedge,fill=alertfill,rounded corners=1mm,inner sep=5pt,align=center,font=\scriptsize\bfseries,text=alertedge}
+]
+
+% 总标题
+\node[font=\bfseries\LARGE] at (15.2,16.25) {全栈图像识别系统细粒度部署架构图};
+\node[font=\small,text=muted] at (15.2,15.78) {基于当前运行代码：浏览器交互、Flask 服务、安全校验、双模型推理与离线知识蒸馏};
+
+% 用户端：保持原图的上方横向大区域与回环箭头
+\node[grouptitle] (clienttitle) at (7.00,14.72) {用户端};
+\node[component=browseredge,text width=3.15cm] (browser) at (2.85,12.60) {
+  \textbf{浏览器}\\[2pt]
+  \texttt{index.html}\\
+  FileReader / Fetch\\
+  FormData / JSON
+};
+\node[compact=browseredge,text width=3.35cm] (interaction) at (8.05,13.35) {
+  \textbf{交互状态}\\
+  单图、URL、批量列表\\
+  模型切换与中英文界面
+};
+\node[compact=browseredge,text width=3.35cm] (history) at (12.30,11.25) {
+  \textbf{浏览器本地能力}\\
+  预览、取消请求、Blob 下载\\
+  localStorage 历史记录（最多 20 条）
+};
+
+% Web 服务器：位于左下，呼应原图中心偏左的位置
+\node[grouptitle] (webtitle) at (5.85,9.55) {Web 服务器};
+\node[compact=serveredge,text width=3.20cm] (gunicorn) at (6.85,8.30) {
+  \textbf{Gunicorn}\\
+  \texttt{-w 2 -b 0.0.0.0:5000}\\
+  两个同步 Worker
+};
+\node[component=serveredge,text width=3.35cm] (flask) at (6.85,5.05) {
+  \textbf{Flask 应用}\\[-1pt]
+  \texttt{app.py}\\[2pt]
+  \texttt{GET /}\\
+  \texttt{POST /predict}\\
+  \texttt{POST /predict\_url}\\
+  \texttt{POST /batch\_predict}
+};
+
+% 业务逻辑层：请求处理器与模型管理器上下错位
+\node[grouptitle] (logictitle) at (13.25,9.72) {业务逻辑层};
+\node[component=logicedge,text width=4.05cm] (validator) at (13.45,7.25) {
+  \textbf{请求处理器}\\[-1pt]
+  \texttt{validate\_and\_process()}\\[2pt]
+  请求 $\leq16$MB；单文件 $\leq10$MB\\
+  批量 $\leq20$ 张；扩展名白名单\\
+  内容签名 + PIL 解码\\
+  URL：HTTP(S)、10 秒、流式限量\\
+  RGB 清洗、最长边 1024、JPEG 85
+};
+\node[component=logicedge,text width=4.05cm] (manager) at (13.45,2.35) {
+  \textbf{模型管理器}\\[-1pt]
+  \texttt{model.py}\\[2pt]
+  \texttt{get\_model()} / \texttt{predict\_image()}\\
+  alexnet / convnext 白名单\\
+  每 Worker 独立模型缓存\\
+  权重格式兼容、异常日志、Top-5
+};
+\node[warning,text width=3.85cm] (memoryonly) at (13.20,-0.10) {
+  上传图像仅在内存传递\\
+  客户端文件名不参与服务器路径构造
+};
+
+% 只读运行资产：原图右侧数据存储区域改为实际只读资源
+\node[grouptitle] (assettitle) at (19.50,14.78) {服务器只读运行资产};
+\node[compact=assetedge,text width=3.15cm] (labels) at (19.50,12.45) {
+  \textbf{ImageNet 类别标签}\\
+  \texttt{imagenet\_class\_}\\[-2pt]
+  \texttt{index.json}\\
+  1000 类 ID 到名称映射
+};
+\node[compact=assetedge,text width=3.15cm] (weights) at (19.50,9.60) {
+  \textbf{模型权重}\\
+  \texttt{best\_student\_}\\[-2pt]
+  \texttt{distilled.pth}\\
+  AlexNet 官方预训练权重缓存
+};
+\node[warning,text width=3.0cm] (noupload) at (19.50,7.10) {
+  无上传图片存储目录\\
+  无同名覆盖与残留清理
+};
+
+% 离线蒸馏：位于右上，与在线服务区分但保留交付连线
+\node[grouptitle] (traintitle) at (26.50,14.78) {离线知识蒸馏};
+\node[compact=trainedge,text width=2.15cm] (data) at (23.65,12.95) {
+  \textbf{ImageNet}\\
+  50,000 张\\
+  40k / 10k
+};
+\node[compact=trainedge,text width=2.25cm] (teacher) at (27.10,12.95) {
+  \textbf{冻结教师}\\
+  ConvNeXt-Base\\
+  生成软标签
+};
+\node[compact=trainedge,text width=2.50cm] (soft) at (29.15,10.25) {
+  \textbf{FP16 软标签}\\
+  $[40000,1000]$\\
+  $T=3.0,\ \alpha=0.7$
+};
+\node[compact=trainedge,text width=2.65cm] (student) at (24.55,9.55) {
+  \textbf{学生蒸馏训练}\\
+  ConvNeXt-Nano\\
+  checkpoint / resume
+};
+\node[compact=trainedge,text width=2.65cm] (best) at (26.35,7.05) {
+  \textbf{最佳模型交付}\\
+  Top-1 81.43\%\\
+  best weight / early stop
+};
+
+% 推理引擎：位于右下，按原图从预处理到网络再到后处理
+\node[grouptitle] (enginetitle) at (23.45,5.72) {推理引擎};
+\node[compact=engineedge,text width=2.25cm] (prep) at (18.25,3.55) {
+  \textbf{图像预处理}\\
+  Resize(256)\\
+  CenterCrop(224)\\
+  Normalize
+};
+\node[compact=engineedge,text width=2.15cm] (router) at (22.05,4.35) {
+  \textbf{模型选择}\\
+  读取请求参数\\
+  命中进程内缓存
+};
+\node[compact=engineedge,text width=2.35cm] (alexnet) at (25.45,4.85) {
+  \textbf{AlexNet}\\
+  5 层卷积\\
+  3 层全连接
+};
+\node[compact=engineedge,text width=2.35cm] (convnext) at (25.90,1.75) {
+  \textbf{ConvNeXt-Nano}\\
+  蒸馏学生模型\\
+  15,593,560 参数
+};
+\node[component=engineedge,text width=2.55cm] (post) at (29.25,3.25) {
+  \textbf{后处理}\\
+  logits $\rightarrow$ Softmax\\
+  排序并提取 Top-5\\
+  映射类别名称
+};
+
+% 用户端与 Web 服务器之间的非对称回环
+\draw[flow] (browser.south east) to[out=-28,in=152]
+  node[edgeword,pos=.50,above] {GET /} (flask.north west);
+\draw[flow] ([yshift=2pt]browser.east) to[out=-10,in=140]
+  node[edgeword,pos=.38,right] {POST /predict\\FormData(file)} ([yshift=12pt]flask.north);
+\draw[flow] ([yshift=-8pt]browser.east) to[out=-18,in=155]
+  node[edgeword,pos=.57,right] {POST /predict\_url\\JSON} ([yshift=-3pt]flask.north east);
+\draw[flow] (browser.south) to[out=-45,in=175]
+  node[edgeword,pos=.64,left] {POST /batch\_predict\\files[]} (flask.west);
+\draw[strongflow] (flask.west) to[out=185,in=-155,looseness=1.10]
+  node[edgeword,pos=.54,left] {HTML / JSON\\CSV·JSON·MD 下载流} (browser.west);
+\draw[flow] (browser.east) to[out=15,in=180]
+  node[edgeword,pos=.48,above] {预览、模型/语言选择} (interaction.west);
+\draw[flow] (interaction.south east) to[out=-25,in=110]
+  node[edgeword,pos=.45,right] {状态与历史} (history.north);
+\draw[flow] (gunicorn.south) -- node[edgeword,right] {调度请求} (flask.north);
+
+% 服务端、业务逻辑与推理链路
+\draw[flow] (flask.east) to[out=8,in=190]
+  node[edgeword,pos=.46,above] {文件 / URL 字节流} (validator.west);
+\draw[flow] ([yshift=-8pt]flask.east) to[out=-8,in=165]
+  node[edgeword,pos=.48,below] {model / format 白名单} ([yshift=8pt]manager.west);
+\draw[strongflow] (validator.south) to[out=-70,in=86]
+  node[edgeword,pos=.45,right] {内存 RGB 图像} (manager.north);
+\draw[dependency] (manager.north east) to[out=74,in=-115]
+  node[edgeword,pos=.48,sloped,above] {查询 labels} (labels.south west);
+\draw[dependency] (manager.east) to[out=35,in=-150]
+  node[edgeword,pos=.52,sloped,below] {加载 / 命中权重缓存} (weights.south west);
+\draw[strongflow] (manager.east) to[out=-5,in=175]
+  node[edgeword,pos=.46,above] {transform(img)} (prep.west);
+\draw[flow] (prep.east) to[out=14,in=188]
+  node[edgeword,pos=.48,above] {batch tensor} (router.west);
+\draw[flow] (router.east) to[out=15,in=180]
+  node[edgeword,pos=.48,above] {alexnet} (alexnet.west);
+\draw[flow] (router.south east) to[out=-35,in=165]
+  node[edgeword,pos=.50,below] {convnext} (convnext.west);
+\draw[flow] (alexnet.east) to[out=0,in=155]
+  node[edgeword,pos=.48,above] {logits} (post.north west);
+\draw[flow] (convnext.east) to[out=5,in=-155]
+  node[edgeword,pos=.50,below] {logits} (post.south west);
+\draw[strongflow] (post.south) to[out=-105,in=-18,looseness=.62]
+  node[edgeword,pos=.50,below] {Top-5 类别与置信度} (manager.south east);
+\draw[strongflow] (manager.west) to[out=180,in=-40]
+  node[edgeword,pos=.48,below] {predictions / 单文件错误记录} (flask.south east);
+\draw[dependency] (memoryonly.north) -- (validator.south west);
+
+% 离线蒸馏与模型交付
+\draw[trainflow] (data.east) to[out=4,in=176]
+  node[edgeword,pos=.50,above] {训练集} (teacher.west);
+\draw[trainflow] (teacher.south) to[out=-75,in=82]
+  node[edgeword,pos=.52,right] {教师 logits} (soft.north);
+\draw[trainflow] (soft.west) to[out=190,in=16]
+  node[edgeword,pos=.50,above] {KL + CE} (student.east);
+\draw[trainflow] (student.south) to[out=-75,in=120]
+  node[edgeword,pos=.48,left] {最佳轮次 / 早停} (best.north west);
+\draw[trainflow] (best.west) to[out=185,in=-35]
+  node[edgeword,pos=.46,sloped,above] {部署权重} (weights.south east);
+
+% 分组底板
+\begin{scope}[on background layer]
+  \node[group,fit=(clienttitle)(browser)(interaction)(history)] {};
+  \node[group,fit=(webtitle)(gunicorn)(flask)] {};
+  \node[group,fit=(logictitle)(validator)(manager)(memoryonly)] {};
+  \node[group,fit=(assettitle)(labels)(weights)(noupload)] {};
+  \node[group,fit=(traintitle)(data)(teacher)(soft)(student)(best)] {};
+  \node[group,fit=(enginetitle)(prep)(router)(alexnet)(convnext)(post)] {};
+\end{scope}
+
+\node[anchor=west,font=\scriptsize,text=muted] at (0.3,-0.38) {
+  实线：请求、图像或推理结果\qquad 虚线：配置与只读资源依赖\qquad 绿色：离线蒸馏和模型交付
+};
+\end{tikzpicture}
+\end{document}
